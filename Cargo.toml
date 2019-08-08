@@ -1,0 +1,20 @@
+[package]
+name = "ckb-miner"
+version = "0.19.0-pre"
+license = "MIT"
+authors = ["Nervos Core Dev <dev@nervos.org>"]
+edition = "2018"
+
+[profile.release]
+debug = false
+overflow-checks = true
+
+[dependencies]
+miner = { path = "miner" }
+toml = "0.5"
+crossbeam-channel = "0.3"
+ckb-logger = { path = "util/logger" }
+sentry = "^0.15.4"
+ckb-build-info = { path = "util/build-info" }
+serde = "1.0"
+serde_derive = "1.0"
