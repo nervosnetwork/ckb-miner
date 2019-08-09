@@ -11,29 +11,29 @@ use std::time::{Duration, Instant};
 const STATE_UPDATE_DURATION_MILLIS: u128 = 300;
 
 extern "C" {
-    pub fn c_solve(output: *mut u32, nonce: *mut u64, input: *const u8, target: *const u8) -> u32;
-    pub fn c_solve_avx(
+    pub fn c_solve_gpu(
         output: *mut u32,
         nonce: *mut u64,
         input: *const u8,
         target: *const u8,
+        gpuid: u32,
     ) -> u32;
 }
 
-pub struct CuckooCpu {
+pub struct CuckooGpu {
     start: bool,
     pow_info: Option<(H256, H256)>,
     seal_tx: Sender<(H256, Seal)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
-    arch: u32,
+    gpuid: u32,
 }
 
-impl CuckooCpu {
+impl CuckooGpu {
     pub fn new(
         seal_tx: Sender<(H256, Seal)>,
         worker_rx: Receiver<WorkerMessage>,
-        arch: u32,
+        gpuid: u32,
     ) -> Self {
         Self {
             start: true,
@@ -41,7 +41,7 @@ impl CuckooCpu {
             seal_candidates_found: 0,
             seal_tx,
             worker_rx,
-            arch,
+            gpuid,
         }
     }
 
@@ -66,23 +66,14 @@ impl CuckooCpu {
         unsafe {
             let mut nonce = 0u64;
             let mut output = vec![0u32; CYCLE_LEN + 1];
-            let ns = match self.arch {
-                0 => c_solve(
-                    output.as_mut_ptr(),
-                    &mut nonce,
-                    pow_hash[..].as_ptr(),
-                    target[..].as_ptr(),
-                ),
-                1 => c_solve_avx(
-                    output.as_mut_ptr(),
-                    &mut nonce,
-                    pow_hash[..].as_ptr(),
-                    target[..].as_ptr(),
-                ),
-                _ => unreachable!(),
-            };
-
-            if output[CYCLE_LEN] == 1 {
+            let ns = c_solve_gpu(
+                output.as_mut_ptr(),
+                &mut nonce,
+                pow_hash[..].as_ptr(),
+                target[..].as_ptr(),
+                self.gpuid,
+            );
+            if ns > 0 && output[CYCLE_LEN] == 1 {
                 let mut proof_u8 = vec![0u8; CYCLE_LEN << 2];
                 LittleEndian::write_u32_into(&output[0..CYCLE_LEN], &mut proof_u8);
                 let seal = Seal::new(nonce, proof_u8.into());
@@ -101,7 +92,7 @@ impl CuckooCpu {
     }
 }
 
-impl Worker for CuckooCpu {
+impl Worker for CuckooGpu {
     fn run(&mut self, progress_bar: ProgressBar) {
         let mut state_update_counter = 0usize;
         let mut start = Instant::now();

@@ -17,16 +17,9 @@ block_on_submit = true
 # block template polling interval in milliseconds
 poll_interval = 1000
 
-[gpus]
-# the gpu you want to use, can be 0,1,2,3,..
-gpuids     = [0]
+# the gpu you want to use runing miner, can be 0,1,2,3,..
+# only work if a gpu miner was built in.
+gpus     = [0]
 
-# cpu miner, the architecture you want to use, 0 is avx2, 1 is avx512
-# avx2 miner can run on most intel CPUs, but slower than avx512
-[[cpus]]
-arch = 0
-threads = 2
-
-[[cpus]]
-arch = 1
-threads = 2
+# how many cpu miners you want to run
+cpus = 2
