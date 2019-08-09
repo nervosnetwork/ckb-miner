@@ -43,7 +43,9 @@ int c_solve(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *
   int graph[M];
   int V[EN], U[EN];
   int path[CLEN];
-  HCRYPTPROV Rnd;
+  HCRYPTPROV Rnd=0;
+  DWORD type = PROV_RSA_FULL;
+  DWORD flags = CRYPT_VERIFYCONTEXT | CRYPT_SILENT;
 
   uint8_t pmesg[40];
   uint8_t mesg[32];
@@ -58,7 +60,10 @@ int c_solve(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *
   b2b_setup(&S);
   
   memcpy(pmesg+8, hash, 32);
+  
+  CryptAcquireContext(&Rnd, 0, 0, type, flags);
   CryptGenRandom(Rnd, 8, pmesg);
+  CryptReleaseContext(Rnd, 0);
   
   for(uint64_t gs=1; gs<200; ++gs) {
     ((uint64_t *)pmesg)[0] = ((uint64_t *)pmesg)[0] ^ gs;

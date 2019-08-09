@@ -431,7 +431,10 @@ void GPU_Count()
 
 extern "C" {
     int c_solve_gpu(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *target, uint32_t gpuid) {
-        HCRYPTPROV Rnd;
+        HCRYPTPROV Rnd=0;
+        DWORD type = PROV_RSA_FULL;
+        DWORD flags = CRYPT_VERIFYCONTEXT | CRYPT_SILENT;
+        
         while (!gpu_divices[gpuid]) {
             gpu_divices[gpuid] = New_GPU_DEVICE();
         }
@@ -442,7 +445,10 @@ extern "C" {
         
         b2b_setup(&S);
         memcpy(pmesg+8, hash, 32);
+
+        CryptAcquireContext(&Rnd, 0, 0, type, flags);
         CryptGenRandom(Rnd, 8, pmesg);
+        CryptReleaseContext(Rnd, 0);
 
         for(uint64_t i=0; i< CuckooNum; ++i) {
             ((uint64_t *)pmesg)[0] = ((uint64_t *)pmesg)[0] ^ i;

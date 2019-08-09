@@ -51,7 +51,10 @@
   
 
 int c_solve_avx(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *target) {
-  HCRYPTPROV Rnd;
+  HCRYPTPROV Rnd=0;
+  DWORD type = PROV_RSA_FULL;
+  DWORD flags = CRYPT_VERIFYCONTEXT | CRYPT_SILENT;
+  
   int graph[M];
   uint64_t *G = _mm_malloc(sizeof(uint64_t) * M, 64);
   int path[CLEN];
@@ -74,7 +77,9 @@ int c_solve_avx(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8
   b2b_setup(&S);
   
   memcpy(pmesg+8, hash, 32);
+  CryptAcquireContext(&Rnd, 0, 0, type, flags);
   CryptGenRandom(Rnd, 8, pmesg);
+  CryptReleaseContext(Rnd, 0);
   
   for(uint64_t gs=1; gs<300; ++gs) {
     ((uint64_t *)pmesg)[0] = ((uint64_t *)pmesg)[0] ^ gs;
