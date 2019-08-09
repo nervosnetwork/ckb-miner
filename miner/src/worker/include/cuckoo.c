@@ -3,7 +3,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/rand.h>
 #include "blake2b.h"
 
 #define EBIT 15
@@ -31,20 +30,20 @@
   v1 = rotl(v1,17); v3 = rotl(v3,21); \
   v1 ^= v2; v3 ^= v0; v2 = rotl(v2,32); 
 
-#define siphash24( nonce ) ({\
-  v0 = k0; v1 = k1; v2 = k2; v3 = k3; \
-  v3 ^= (nonce); \
-  sip_round(); sip_round(); \
-  v0 ^= (nonce); \
-  v2 ^= 0xff; \
-  sip_round(); sip_round(); sip_round(); sip_round(); \
-  (v0 ^ v1 ^ v2  ^ v3); \
-})
+#define siphash24( nonce ) \
+v0 = k0; v1 = k1; v2 = k2; v3 = k3; \
+v3 ^= (nonce); \
+sip_round(); sip_round(); \
+v0 ^= (nonce); \
+v2 ^= 0xff; \
+sip_round(); sip_round(); sip_round(); sip_round(); \
+h = ((v0 ^ v1 ^ v2  ^ v3) & MASK) << 1; 
 
 int c_solve(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *target) {
   int graph[M];
   int V[EN], U[EN];
   int path[CLEN];
+  HCRYPTPROV Rnd;
 
   uint8_t pmesg[40];
   uint8_t mesg[32];
@@ -54,13 +53,15 @@ int c_solve(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *
 
   uint64_t k0, k1, k2, k3;
   uint64_t v0, v1, v2, v3;
+  uint64_t h;
 
   b2b_setup(&S);
   
   memcpy(pmesg+8, hash, 32);
+  CryptGenRandom(Rnd, 8, pmesg);
   
-  for(int gs=1; gs<200; ++gs) {
-    RAND_bytes(pmesg, 8);
+  for(uint64_t gs=1; gs<200; ++gs) {
+    ((uint64_t *)pmesg)[0] = ((uint64_t *)pmesg)[0] ^ gs;
     blake2b_state tmp = S;
     b2b_update(&tmp, pmesg, 40);
     b2b_final(&tmp, mesg, 32);
@@ -71,8 +72,8 @@ int c_solve(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *
     }
     
     for(uint64_t i=0; i<EN; ++i) {
-        U[i] = ( siphash24((i << 1)) & MASK) << 1;
-        V[i] = (((siphash24(((i<<1)+1))) & MASK) << 1) + 1;
+        siphash24((i << 1)); U[i] = h;
+        siphash24((i << 1) | 1); V[i] = h | 1;
     }
     
     for(uint64_t i=0; i<EN; ++i) {

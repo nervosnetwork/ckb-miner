@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 
 const STATE_UPDATE_DURATION_MILLIS: u128 = 300;
 
+#[link(name="cuckoo", kind="static")]
 extern "C" {
     pub fn c_solve_gpu(
         output: *mut u32,

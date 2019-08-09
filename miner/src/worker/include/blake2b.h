@@ -4,6 +4,8 @@
 #include "blake2.h"
 #include "blake2-impl.h"
 #include "blake2-config.h"
+#include <windows.h>
+#include <Wincrypt.h>
 
 #ifdef _MSC_VER
 #include <intrin.h> /* for _mm_set_epi64x */

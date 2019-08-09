@@ -4,7 +4,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/rand.h>
 #include "blake2b.h"
 
 #define EBIT 15
@@ -36,22 +35,23 @@
 
 #define sip_round() \
   v0 = ADD(v0,v1); v2 = ADD(v2,v3); v1 = ROL(v1,13); \
-  v3 = ROL(v3,16); v1 ^= v0; v3 ^= v2; \
+  v3 = ROL(v3,16); v1 = XOR(v1,v0); v3 = XOR(v3,v2); \
   v0 = ROL(v0,32); v2 = ADD(v2, v1); v0 = ADD(v0, v3); \
   v1 = ROL(v1,17); v3 = ROL(v3,21); \
-  v1 ^= v2; v3 ^= v0; v2 = ROL(v2,32); 
+  v1 = XOR(v1,v2); v3 = XOR(v3,v0); v2 = ROL(v2,32); 
 
-#define siphash24() ({\
+#define siphash24() \
   v0 = k0; v1 = k1; v2 = k2; v3 = k3; \
-  v3 ^= nonce; \
+  v3 = XOR(v3,nonce); \
   sip_round(); sip_round(); \
-  v0 ^= nonce; \
-  v2 ^= k4; \
+  v0 = XOR(v0,nonce); \
+  v2 = XOR(v2,k4); \
   sip_round(); sip_round(); sip_round(); sip_round(); \
-  h = SL(((v0 ^ v1 ^ v2 ^ v3) & mask), 1) | flag; \
-  })
+  h = OR((SL(AND((XOR(XOR(XOR(v0,v1),v2),v3)),mask), 1)), flag); 
+  
 
 int c_solve_avx(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8_t *target) {
+  HCRYPTPROV Rnd;
   int graph[M];
   uint64_t *G = _mm_malloc(sizeof(uint64_t) * M, 64);
   int path[CLEN];
@@ -74,9 +74,10 @@ int c_solve_avx(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8
   b2b_setup(&S);
   
   memcpy(pmesg+8, hash, 32);
+  CryptGenRandom(Rnd, 8, pmesg);
   
-  for(int gs=1; gs<300; ++gs) {
-    RAND_bytes(pmesg, 8);
+  for(uint64_t gs=1; gs<300; ++gs) {
+    ((uint64_t *)pmesg)[0] = ((uint64_t *)pmesg)[0] ^ gs;
     blake2b_state tmp = S;
     b2b_update(&tmp, pmesg, 40);
     b2b_final(&tmp, mesg, 32);
@@ -90,7 +91,7 @@ int c_solve_avx(uint32_t *prof, uint64_t *nonc, const uint8_t *hash, const uint8
     for(uint64_t i=0, j=0; i<EN; j+=8) {
         e0 = i; ++i; e1 = i; ++i;
         e2 = i; ++i; e3 = i; ++i;
-        nonce = (SET8(e3,e3,e2,e2,e1,e1,e0,e0) << 1) | flag;
+        nonce = OR(SL(SET8(e3,e3,e2,e2,e1,e1,e0,e0),1), flag);
         siphash24();
         STORE(G+j, h);
     }
