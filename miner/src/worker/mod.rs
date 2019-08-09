@@ -48,7 +48,7 @@ pub fn start_worker(
     let mut worker_txs = Vec::new();
     #[cfg(feature = "gpu")]
     for i in config.gpus {
-        let worker_name = format!("Cuckoo-Worker-CPU-{}", i);
+        let worker_name = format!("Cuckoo-Worker-GPU-{}", i);
         // `100` is the len of progress bar, we can use any dummy value here,
         // since we only show the spinner in console.
         let pb = mp.add(ProgressBar::new(100));

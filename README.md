@@ -1,7 +1,7 @@
 # ckb-cuckoo-miner
 A cuckoo miner for avx2 CPUs, avx512 CPUs and Nvidia GPUs.
 
-Using avx512, the GPS can be up to 1200 per thread, 10x faster.
+Using avx512, the GPS can be up to 1200 per thread on 2.5Ghz CPUs, 10x faster.
 
 For GPUs, the GPS is 15000 on GTX 1060.
 
