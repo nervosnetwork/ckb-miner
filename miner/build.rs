@@ -1,5 +1,3 @@
-extern crate cc;
-
 fn main() {
     cc::Build::new()
         .file("src/worker/include/blake2b.c")
@@ -42,6 +40,8 @@ fn main() {
     // Add link directory
     // - This path depends on where you install CUDA (i.e. depends on your Linux distribution)
     // - This should be set by `$LIBRARY_PATH`
+    #[cfg(feature = "gpu")]
     println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
+    #[cfg(feature = "gpu")]
     println!("cargo:rustc-link-lib=cudart");
 }
