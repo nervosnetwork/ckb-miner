@@ -407,6 +407,8 @@ GPU_DEVICE* New_GPU_DEVICE()
         p->gRege = NULL;
         p->gproof = NULL;
         p->gnode = NULL;
+    } else {
+        printf("alloc memory error\n");
     }
     return p;
 }
