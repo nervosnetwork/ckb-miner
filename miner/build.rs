@@ -4,7 +4,6 @@ fn main() {
     cc::Build::new()
         .file("src/worker/include/blake2b.c")
         .include("src/worker/include")
-        .flag("/arch:AVX2")
         .compile("libblake2b.a");
 
     cc::Build::new()
