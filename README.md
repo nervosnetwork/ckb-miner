@@ -1,6 +1,8 @@
 # ckb-miner
 
-``Current PoW algorithm: Eaglesong.``
+| PoW algorithm | Since | 
+| ----          | ----    |
+|   Eaglesong   | v0.19.0 |
 
 A miner for avx2 CPUs, avx512 CPUs and Nvidia GPUs.
 
