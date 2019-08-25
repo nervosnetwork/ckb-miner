@@ -96,7 +96,7 @@ impl Worker for EaglesongGpu {
                             as f64
                             / 1_000_000_000.0;
                         progress_bar.set_message(&format!(
-                            "gps: {:>10.3} / seals found: {:>10}",
+                            "hash rate: {:>10.3} / seals found: {:>10}",
                             state_update_counter as f64 / elapsed_nanos,
                             self.seal_candidates_found,
                         ));

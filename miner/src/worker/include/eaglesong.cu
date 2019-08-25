@@ -21,7 +21,7 @@
 #define THREADS_PER_BLOCK  (512)
 #define MAX_HASH_NUM (1<<30)
 #define MAX_GPU_NUM (1024)
-#define HASH_NUM (1<<29)
+#define HASH_NUM (1<<27)
 
 #define DELIMITER (0x06)
 

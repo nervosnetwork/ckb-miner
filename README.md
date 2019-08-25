@@ -3,7 +3,7 @@ A miner for avx2 CPUs, avx512 CPUs and Nvidia GPUs.
 
 Using avx512, the hash rate can be up to 5M per thread on 2.5Ghz CPUs.
 
-For GPUs, the hash rate is 150M on GTX 1060.
+For GPUs, the hash rate is 190M on GTX 1060.
 
 ## How to build
 By default, GPU miner is not built, you can build GPU miner with this parameters:
