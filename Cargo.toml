@@ -13,9 +13,9 @@ overflow-checks = true
 miner = { path = "miner" }
 toml = "0.5"
 crossbeam-channel = "0.3"
-ckb-logger = { path = "util/logger" }
+ckb-logger = { tag = "v0.19.1", git = "https://github.com/nervosnetwork/ckb", package = "ckb-logger" }
+ckb-build-info = { tag = "v0.19.1", git = "https://github.com/nervosnetwork/ckb", package = "ckb-build-info" }
 sentry = "^0.15.4"
-ckb-build-info = { path = "util/build-info" }
 serde = "1.0"
 serde_derive = "1.0"
 

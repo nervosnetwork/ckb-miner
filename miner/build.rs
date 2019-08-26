@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::env;
+
 fn main() {
     if cfg!(windows) {
         cc::Build::new()
@@ -25,11 +28,18 @@ fn main() {
             .cuda(true)
             .compile("libeaglesong.a.3");
 
-        // - This path depends on where you install CUDA (i.e. depends on your Linux distribution)
         #[cfg(feature = "gpu")]
-        println!("cargo:rustc-link-search=native=C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v10.1\\lib\\x64");
-        #[cfg(feature = "gpu")]
-        println!("cargo:rustc-link-lib=cudart");
+        {
+            if let Some(lib_dir) = env::var_os("CUDA_LIB_DIR") {
+                let lib_dir = Path::new(&lib_dir);
+                println!("cargo:rustc-link-search=native={}", lib_dir.display());
+            } else {
+                // - This path depends on where you install CUDA (i.e. depends on your Linux distribution)
+                // - default cuda lib path for CUDA 10.1
+                println!("cargo:rustc-link-search=native=C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v10.1\\lib\\x64");
+            }
+            println!("cargo:rustc-link-lib=cudart");
+        }
     } else {
         cc::Build::new()
             .file("src/worker/include/eaglesong.c")
@@ -66,12 +76,17 @@ fn main() {
             .cuda(true)
             .compile("libeaglesong.a.3");
 
-        // Add link directory
-        // - This path depends on where you install CUDA (i.e. depends on your Linux distribution)
-        // - This should be set by `$LIBRARY_PATH`
         #[cfg(feature = "gpu")]
-        println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
-        #[cfg(feature = "gpu")]
-        println!("cargo:rustc-link-lib=cudart");
+        {
+            if let Some(lib_dir) = env::var_os("CUDA_LIB_DIR") {
+                let lib_dir = Path::new(&lib_dir);
+                println!("cargo:rustc-link-search=native={}", lib_dir.display());
+            } else {
+                // - This path depends on where you install CUDA (i.e. depends on your Linux distribution)
+                // - default cuda lib path for Ubuntu 18.04
+                println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
+            }
+            println!("cargo:rustc-link-lib=cudart");
+        }        
     }
 }
