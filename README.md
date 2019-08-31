@@ -13,18 +13,23 @@ For GPUs, the hash rate is 190M on GTX 1060, 300M on GTX 1070ti.
 ## How to build
 By default, GPU miner is not built, you can build GPU miner with this parameters:
 
+```
+cargo build --release --features gpu
+```
+
+By default, the cuda lib path is C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\x64 for Windows and /usr/local/cuda/lib64 for other platform, you can change this by set CUDA_LIB_DIR.
+
 For Linux and OSX:
 
 ```
 export CUDA_LIB_DIR=<PATH> # <PATH> is the path where you install CUDA, eg export CUDA_LIB_DIR=/usr/local/cuda/lib64
-cargo build --release --features gpu
+
 ```
 
 For windows:
 
 ```
 set CUDA_LIB_DIR=<PATH> # <PATH> is the path where you install CUDA, eg set CUDA_LIB_DIR=C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v10.1\\lib\\x64
-cargo build --release --features gpu
 ```
 
 Cuda is essential to build and run GPU miners.
