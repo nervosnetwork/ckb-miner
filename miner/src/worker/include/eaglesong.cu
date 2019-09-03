@@ -252,7 +252,7 @@ extern "C" {
 		uint32_t ret;
 		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[0]), 4);
 		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[1]), 4);
-		
+
 		// absorbing
 		for(int j = 0, k=0; j <= M; ++j) {
 			uint32_t sum = 0;
@@ -269,6 +269,7 @@ extern "C" {
 		gpu_divices[gpuid]->target = target;
 		gpu_divices[gpuid]->nonce_id = 0;
 
+		cudaSetDevice(gpuid);
 		ret = gpu_hash(gpuid);
 
 		if(gpu_divices[gpuid]->nonce_id) {
