@@ -3,6 +3,7 @@ filter = "info"
 color = true
 log_to_file = true
 log_to_stdout = true
+file = "/var/log/miner.log"
 
 [sentry]
 # set to blank to disable sentry error collection

@@ -1,4 +1,6 @@
+#[cfg(feature = "gpu")]
 use std::path::Path;
+#[cfg(feature = "gpu")]
 use std::env;
 
 fn main() {

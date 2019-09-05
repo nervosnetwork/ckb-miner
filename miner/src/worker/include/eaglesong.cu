@@ -138,7 +138,7 @@ int gpu_hash(uint32_t gpuid)
 	if (gpu_divices[gpuid]->g_state == NULL)
 	{
 		if (cudaMalloc((void **)&gpu_divices[gpuid]->g_state, sizeof(gpu_divices[gpuid]->state)) != cudaSuccess) {
-			printf("E01: cuda alloc memory error for state\n");
+			printf("E01: can not find the divice specified, have you installed the right driver?\n");
 			return 0;
 		}
 	}
