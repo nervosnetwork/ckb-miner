@@ -4,7 +4,7 @@ mod eaglesong_gpu;
 
 use crate::MinerConfig;
 use ckb_logger::error;
-use ckb_types::H256;
+use ckb_types::packed::Byte32;
 use crossbeam_channel::{unbounded, Sender};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::thread;
@@ -13,7 +13,7 @@ use std::thread;
 pub enum WorkerMessage {
     Stop,
     Start,
-    NewWork((H256, H256)),
+    NewWork((Byte32, Byte32)),
 }
 
 #[derive(Clone)]
@@ -39,7 +39,7 @@ const PROGRESS_BAR_TEMPLATE: &str = "{prefix:.bold.dim} {spinner:.green} [{elaps
 
 pub fn start_worker(
     config: MinerConfig,
-    seal_tx: Sender<(H256, u64)>,
+    seal_tx: Sender<(Byte32, u64)>,
     mp: &MultiProgress,
 ) -> WorkerController {
     let mut worker_txs = Vec::new();

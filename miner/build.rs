@@ -1,7 +1,7 @@
 #[cfg(feature = "gpu")]
-use std::path::Path;
-#[cfg(feature = "gpu")]
 use std::env;
+#[cfg(feature = "gpu")]
+use std::path::Path;
 
 fn main() {
     if cfg!(windows) {
@@ -89,6 +89,6 @@ fn main() {
                 println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
             }
             println!("cargo:rustc-link-lib=cudart");
-        }        
+        }
     }
 }

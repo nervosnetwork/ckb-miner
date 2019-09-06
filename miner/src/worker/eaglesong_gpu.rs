@@ -1,6 +1,6 @@
 use super::{Worker, WorkerMessage};
 use ckb_logger::{debug, error};
-use ckb_types::H256;
+use ckb_types::{packed::Byte32, prelude::*};
 use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressBar;
 use std::thread;
@@ -14,8 +14,8 @@ extern "C" {
 
 pub struct EaglesongGpu {
     start: bool,
-    pow_info: Option<(H256, H256)>,
-    seal_tx: Sender<(H256, u64)>,
+    pow_info: Option<(Byte32, Byte32)>,
+    seal_tx: Sender<(Byte32, u64)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
     gpuid: u32,
@@ -23,7 +23,7 @@ pub struct EaglesongGpu {
 
 impl EaglesongGpu {
     pub fn new(
-        seal_tx: Sender<(H256, u64)>,
+        seal_tx: Sender<(Byte32, u64)>,
         worker_rx: Receiver<WorkerMessage>,
         gpuid: u32,
     ) -> Self {
@@ -54,12 +54,12 @@ impl EaglesongGpu {
     }
 
     #[inline]
-    fn solve(&mut self, pow_hash: &H256, target: &H256) -> usize {
+    fn solve(&mut self, pow_hash: &Byte32, target: &Byte32) -> usize {
         unsafe {
             let mut nonce = 0u64;
             let ns = c_solve_gpu(
-                pow_hash[..].as_ptr(),
-                target[..].as_ptr(),
+                pow_hash.as_slice().as_ptr(),
+                target.as_slice().as_ptr(),
                 &mut nonce,
                 self.gpuid,
             );

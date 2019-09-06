@@ -3,7 +3,7 @@ use crate::worker::{start_worker, WorkerController, WorkerMessage};
 use crate::MinerConfig;
 use crate::Work;
 use ckb_logger::{debug, error, info};
-use ckb_types::{packed::Header, prelude::*, utilities::difficulty_to_target, H256};
+use ckb_types::{packed::Byte32, packed::Header, prelude::*, utilities::difficulty_to_target};
 use ckb_util::Mutex;
 use crossbeam_channel::{unbounded, Receiver};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -16,9 +16,9 @@ const WORK_CACHE_SIZE: usize = 32;
 
 pub struct Miner {
     pub client: Client,
-    pub works: Arc<Mutex<LruCache<H256, Work>>>,
+    pub works: Arc<Mutex<LruCache<Byte32, Work>>>,
     pub worker_controller: WorkerController,
-    pub seal_rx: Receiver<(H256, u64)>,
+    pub seal_rx: Receiver<(Byte32, u64)>,
     pub pb: ProgressBar,
     pub seals_found: u64,
     pub stderr_is_tty: bool,
@@ -85,7 +85,7 @@ impl Miner {
         }
     }
 
-    fn submit_seal(&mut self, pow_hash: H256, nonce: u64) {
+    fn submit_seal(&mut self, pow_hash: Byte32, nonce: u64) {
         let new_work = { self.works.lock().get_refresh(&pow_hash).cloned() };
         if let Some(work) = new_work {
             let raw_header = work.block.header().raw();
@@ -94,7 +94,7 @@ impl Miner {
                 .nonce(nonce.pack())
                 .build();
             let block = work.block.as_builder().header(header).build().into_view();
-            let block_hash: H256 = block.hash().unpack();
+            let block_hash: Byte32 = block.hash();
             if self.stderr_is_tty {
                 debug!("Found! #{} {:#x}", block.number(), block_hash);
             } else {

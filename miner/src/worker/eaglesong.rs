@@ -1,6 +1,6 @@
 use super::{Worker, WorkerMessage};
 use ckb_logger::{debug, error};
-use ckb_types::H256;
+use ckb_types::{packed::Byte32, prelude::*};
 use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressBar;
 use std::thread;
@@ -16,8 +16,8 @@ extern "C" {
 
 pub struct EaglesongCpu {
     start: bool,
-    pow_info: Option<(H256, H256)>,
-    seal_tx: Sender<(H256, u64)>,
+    pow_info: Option<(Byte32, Byte32)>,
+    seal_tx: Sender<(Byte32, u64)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
     arch: u32,
@@ -25,7 +25,7 @@ pub struct EaglesongCpu {
 
 impl EaglesongCpu {
     pub fn new(
-        seal_tx: Sender<(H256, u64)>,
+        seal_tx: Sender<(Byte32, u64)>,
         worker_rx: Receiver<WorkerMessage>,
         arch: u32,
     ) -> Self {
@@ -56,13 +56,25 @@ impl EaglesongCpu {
     }
 
     #[inline]
-    fn solve(&mut self, pow_hash: &H256, target: &H256) -> usize {
+    fn solve(&mut self, pow_hash: &Byte32, target: &Byte32) -> usize {
         unsafe {
             let mut nonce = 0u64;
             let ns = match self.arch {
-                0 => c_solve(pow_hash[..].as_ptr(), target[..].as_ptr(), &mut nonce),
-                1 => c_solve_avx2(pow_hash[..].as_ptr(), target[..].as_ptr(), &mut nonce),
-                2 => c_solve_avx512(pow_hash[..].as_ptr(), target[..].as_ptr(), &mut nonce),
+                0 => c_solve(
+                    pow_hash.as_slice().as_ptr(),
+                    target.as_slice().as_ptr(),
+                    &mut nonce,
+                ),
+                1 => c_solve_avx2(
+                    pow_hash.as_slice().as_ptr(),
+                    target.as_slice().as_ptr(),
+                    &mut nonce,
+                ),
+                2 => c_solve_avx512(
+                    pow_hash.as_slice().as_ptr(),
+                    target.as_slice().as_ptr(),
+                    &mut nonce,
+                ),
                 _ => unreachable!(),
             };
 
