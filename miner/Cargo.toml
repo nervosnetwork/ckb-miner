@@ -34,4 +34,5 @@ cc = "1.0"
 pkg-config = "0.3.15"
 
 [features]
-gpu = []
+cuda = []
+opencl = []

@@ -9,22 +9,31 @@ use std::time::{Duration, Instant};
 const STATE_UPDATE_DURATION_MILLIS: u128 = 300;
 
 extern "C" {
-    pub fn c_solve_gpu(input: *const u8, target: *const u8, nonce: *mut u64, gpuid: u32) -> u32;
+    pub fn c_solve_cl(input: *const u8, target: *const u8, nonce: *mut u64, plat_id: u32, gpuid: u32) -> u32;
+    pub fn c_plat_init(plat_id: u32) -> u32;
 }
 
-pub struct EaglesongGpu {
+pub fn plat_init(plat_id: u32) -> u32 {
+    unsafe {
+        c_plat_init(plat_id)
+    }
+}
+
+pub struct EaglesongCL {
     start: bool,
     pow_info: Option<(Byte32, Byte32)>,
     seal_tx: Sender<(Byte32, u64)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
+    plat_id: u32,
     gpuid: u32,
 }
 
-impl EaglesongGpu {
+impl EaglesongCL {
     pub fn new(
         seal_tx: Sender<(Byte32, u64)>,
         worker_rx: Receiver<WorkerMessage>,
+        plat_id: u32,
         gpuid: u32,
     ) -> Self {
         Self {
@@ -33,6 +42,7 @@ impl EaglesongGpu {
             seal_candidates_found: 0,
             seal_tx,
             worker_rx,
+            plat_id,
             gpuid,
         }
     }
@@ -57,10 +67,11 @@ impl EaglesongGpu {
     fn solve(&mut self, pow_hash: &Byte32, target: &Byte32) -> usize {
         unsafe {
             let mut nonce = 0u64;
-            let ns = c_solve_gpu(
+            let ns = c_solve_cl(
                 pow_hash.as_slice().as_ptr(),
                 target.as_slice().as_ptr(),
                 &mut nonce,
+                self.plat_id,
                 self.gpuid,
             );
             if nonce != 0 {
@@ -79,7 +90,7 @@ impl EaglesongGpu {
     }
 }
 
-impl Worker for EaglesongGpu {
+impl Worker for EaglesongCL {
     fn run(&mut self, progress_bar: ProgressBar) {
         let mut state_update_counter = 0usize;
         let mut start = Instant::now();
@@ -104,6 +115,7 @@ impl Worker for EaglesongGpu {
                         state_update_counter = 0;
                         start = Instant::now();
                     }
+
                 }
             } else {
                 // reset state and sleep

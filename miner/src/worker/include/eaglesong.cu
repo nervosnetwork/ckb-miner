@@ -244,7 +244,7 @@ void GPU_Count()
 }
 
 extern "C" {
-	uint32_t c_solve_gpu(uint8_t *input, uint8_t *target, uint64_t *nonce, uint32_t gpuid) {
+	uint32_t c_solve_cuda(uint8_t *input, uint8_t *target, uint64_t *nonce, uint32_t gpuid) {
 		while(!gpu_divices[gpuid]) {
 			gpu_divices[gpuid] = New_GPU_DEVICE();
 		}

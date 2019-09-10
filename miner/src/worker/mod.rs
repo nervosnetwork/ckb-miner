@@ -1,6 +1,9 @@
 mod eaglesong;
-#[cfg(feature = "gpu")]
-mod eaglesong_gpu;
+#[cfg(feature = "cuda")]
+mod eaglesong_cuda;
+
+#[cfg(feature = "opencl")]
+mod eaglesong_cl;
 
 use crate::MinerConfig;
 use ckb_logger::error;
@@ -43,25 +46,56 @@ pub fn start_worker(
     mp: &MultiProgress,
 ) -> WorkerController {
     let mut worker_txs = Vec::new();
-    #[cfg(feature = "gpu")]
-    for i in config.gpus {
-        let worker_name = format!("Eaglesong-Worker-GPU-{}", i);
-        // `100` is the len of progress bar, we can use any dummy value here,
-        // since we only show the spinner in console.
-        let pb = mp.add(ProgressBar::new(100));
-        pb.set_style(ProgressStyle::default_bar().template(PROGRESS_BAR_TEMPLATE));
-        pb.set_prefix(&worker_name);
+    #[cfg(feature = "cuda")]
+    for g in config.gpus {
+        for i in g.gpu_ids {
+            let worker_name = format!("Eaglesong-GPU-CU-{}", i);
+            // `100` is the len of progress bar, we can use any dummy value here,
+            // since we only show the spinner in console.
+            let pb = mp.add(ProgressBar::new(100));
+            pb.set_style(ProgressStyle::default_bar().template(PROGRESS_BAR_TEMPLATE));
+            pb.set_prefix(&worker_name);
 
-        let (worker_tx, worker_rx) = unbounded();
-        let seal_tx = seal_tx.clone();
-        thread::Builder::new()
-            .name(worker_name)
-            .spawn(move || {
-                let mut worker = eaglesong_gpu::EaglesongGpu::new(seal_tx, worker_rx, i);
-                worker.run(pb);
-            })
-            .expect("Start `EaglesongGpu` worker thread failed");
-        worker_txs.push(worker_tx);
+            let (worker_tx, worker_rx) = unbounded();
+            let seal_tx = seal_tx.clone();
+            thread::Builder::new()
+                .name(worker_name)
+                .spawn(move || {
+                    let mut worker = eaglesong_cuda::EaglesongCuda::new(seal_tx, worker_rx, i);
+                    worker.run(pb);
+                })
+                .expect("Start `EaglesongCuda` worker thread failed");
+            worker_txs.push(worker_tx);
+        }
+    }
+
+    #[cfg(feature = "opencl")]
+    for g in config.gpus {
+        let plat_id = g.plat_id;
+        
+        if eaglesong_cl::plat_init(plat_id) != 1 {
+            panic!("platform init error!");
+        }
+
+        for i in g.gpu_ids {
+            let worker_name = format!("Eaglesong-GPU-CL-{}", i);
+            // `100` is the len of progress bar, we can use any dummy value here,
+            // since we only show the spinner in console.
+            let pb = mp.add(ProgressBar::new(100));
+            pb.set_style(ProgressStyle::default_bar().template(PROGRESS_BAR_TEMPLATE));
+            pb.set_prefix(&worker_name);
+
+            let (worker_tx, worker_rx) = unbounded();
+            let seal_tx = seal_tx.clone();
+            thread::Builder::new()
+                .name(worker_name)
+                .spawn(move || {
+                    let mut worker = eaglesong_cl::EaglesongCL::new(seal_tx, worker_rx, plat_id, i);
+                    worker.run(pb);
+                })
+                .expect("Start `EaglesongGpu` worker thread failed");
+            worker_txs.push(worker_tx);
+        }
     }
 
     let arch = if is_x86_feature_detected!("avx512f") {
