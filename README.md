@@ -44,7 +44,7 @@ Cuda is essential to build and run miners based on Cuda.
 
 | GPU       | 1060 | 1070 ti | P106 | 2060 |
 | ---       | ---  | ---     | ---- | ---  |
-| Hash Rate | 19M  | 30M     | 20M  |  31M   |
+| Hash Rate | 190M  | 300M     | 200M  |  310M   |
 
 ### OpenCL runtime
 With OpenCL, the miner can run on any GPUs.
@@ -53,9 +53,9 @@ By default, the OpenCL include path is C:\Program Files\NVIDIA GPU Computing Too
 
 #### Performance
 
-| GPU       | 1060 | 1070 ti | P106 | 2060 | VEGA64 | RX5700 | RX580 |
-| ---       | ---  | ---     | ---- | ---  | --- |    ---    | ---   |
-| Hash Rate | 18M  | 30M     | 20M  |  30M   | 40M   | 27M   | 16M   |
+| GPU       | 1060 | 1070 ti | P106 | 2060 | VEGA64 | RX5700 | RX580 | RX570 |
+| ---       | ---  | ---     | ---- | ---  | ---  | ---    | ---  | --- |
+| Hash Rate | 180M | 300M    | 200M | 300M | 400M | 270M   | 160M |  130M   |
 
 ## How to use
 1. Modify `ckb-miner.toml` in this repo and copy it to your working directory. You can specify the CPUs and GPUs you want to use.
