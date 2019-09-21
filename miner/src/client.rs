@@ -149,8 +149,8 @@ impl Client {
     pub fn poll_new_work(&mut self) -> Option<Work> {
         match self.get_block_template().wait() {
             Ok(block_template) => {
-                if self.current_work_id != Some(block_template.work_id.0) {
-                    self.current_work_id = Some(block_template.work_id.0);
+                if self.current_work_id != Some(block_template.work_id.into()) {
+                    self.current_work_id = Some(block_template.work_id.into());
                     Some(block_template.into())
                 } else {
                     None
