@@ -257,7 +257,6 @@ GPU_DEVICE* New_GPU_DEVICE()
 
 uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devices, size_t gpu_id, size_t p_id, cl_int  status, uint8_t *input, uint8_t *target, uint64_t *nonce)
 {
-	uint32_t outbuffer;
 	size_t globalThreads[] = { HASH_NUM };
 	size_t localThreads[] = { THREADS_PER_BLOCK };
 	GPU_DEVICE *dev;
@@ -324,12 +323,11 @@ uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devic
 	status = clFinish(dev->commandQueue);
 	if (status != CL_SUCCESS) { printf("Error: Finish command queue\n"); goto end; }
 
-	status = clEnqueueReadBuffer(dev->commandQueue, dev->g_nonce_id, CL_TRUE, 0, sizeof(outbuffer), &outbuffer, 0, NULL, NULL);
+	status = clEnqueueReadBuffer(dev->commandQueue, dev->g_nonce_id, CL_TRUE, 0, sizeof(dev->nonce_id), &dev->nonce_id, 0, NULL, NULL);
 	if (status != CL_SUCCESS) { printf("Error: Read buffer queue\n"); goto end; }
 
 	if (dev->nonce_id)
 	{
-
 		*nonce = le32toh(htobe32(dev->state[1]));
 		*nonce = (*nonce << 32) ^ le32toh(htobe32(((dev->state[0]) ^ (dev->nonce_id))));
 	}
