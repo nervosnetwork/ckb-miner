@@ -7,7 +7,7 @@ mod eaglesong_cl;
 
 use crate::MinerConfig;
 use ckb_logger::error;
-use ckb_types::packed::Byte32;
+use ckb_types::{packed::Byte32, U256};
 use crossbeam_channel::{unbounded, Sender};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::thread;
@@ -16,7 +16,7 @@ use std::thread;
 pub enum WorkerMessage {
     Stop,
     Start,
-    NewWork((Byte32, Byte32)),
+    NewWork((Byte32, U256)),
 }
 
 #[derive(Clone)]
@@ -72,7 +72,7 @@ pub fn start_worker(
     #[cfg(feature = "opencl")]
     for g in config.gpus {
         let plat_id = g.plat_id;
-        
+
         if eaglesong_cl::plat_init(plat_id) != 1 {
             panic!("platform init error!");
         }

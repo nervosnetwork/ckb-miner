@@ -3,7 +3,7 @@ use crate::worker::{start_worker, WorkerController, WorkerMessage};
 use crate::MinerConfig;
 use crate::Work;
 use ckb_logger::{debug, error, info};
-use ckb_types::{packed::Byte32, packed::Header, prelude::*, utilities::difficulty_to_target};
+use ckb_types::{packed::Byte32, packed::Header, prelude::*, utilities::compact_to_target};
 use ckb_util::Mutex;
 use crossbeam_channel::{unbounded, Receiver};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -52,8 +52,8 @@ impl Miner {
             thread::spawn(move || loop {
                 if let Some(work) = client.poll_new_work() {
                     let pow_hash = work.block.header().calc_pow_hash();
-                    let target =
-                        difficulty_to_target(&work.block.header().raw().difficulty().unpack());
+                    let (target, _) =
+                        compact_to_target(work.block.header().raw().compact_target().unpack());
                     if works.lock().insert(pow_hash.clone(), work).is_none() {
                         worker_controller.send_message(WorkerMessage::NewWork((pow_hash, target)));
                     }
@@ -108,8 +108,8 @@ impl Miner {
                 // poll new work
                 if let Some(work) = self.client.poll_new_work() {
                     let pow_hash = work.block.header().calc_pow_hash();
-                    let target =
-                        difficulty_to_target(&work.block.header().raw().difficulty().unpack());
+                    let (target, _) =
+                        compact_to_target(work.block.header().raw().compact_target().unpack());
                     if self.works.lock().insert(pow_hash.clone(), work).is_none() {
                         self.worker_controller
                             .send_message(WorkerMessage::NewWork((pow_hash, target)));

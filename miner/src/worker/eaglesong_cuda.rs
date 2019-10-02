@@ -1,6 +1,6 @@
 use super::{Worker, WorkerMessage};
 use ckb_logger::{debug, error};
-use ckb_types::{packed::Byte32, prelude::*};
+use ckb_types::{packed::Byte32, prelude::*, U256};
 use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressBar;
 use std::thread;
@@ -14,7 +14,7 @@ extern "C" {
 
 pub struct EaglesongCuda {
     start: bool,
-    pow_info: Option<(Byte32, Byte32)>,
+    pow_info: Option<(Byte32, U256)>,
     seal_tx: Sender<(Byte32, u64)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
@@ -54,12 +54,12 @@ impl EaglesongCuda {
     }
 
     #[inline]
-    fn solve(&mut self, pow_hash: &Byte32, target: &Byte32) -> usize {
+    fn solve(&mut self, pow_hash: &Byte32, target: &U256) -> usize {
         unsafe {
             let mut nonce = 0u64;
             let ns = c_solve_cuda(
                 pow_hash.as_slice().as_ptr(),
-                target.as_slice().as_ptr(),
+                target.to_be_bytes().as_ptr(),
                 &mut nonce,
                 self.gpuid,
             );

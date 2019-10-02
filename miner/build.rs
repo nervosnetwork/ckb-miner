@@ -36,7 +36,7 @@ fn main() {
                 .include("src/worker/include")
                 .include(include_dir)
                 .compile("libeaglesong.a.4");
-            
+
             if let Some(lib_dir) = env::var_os("OPENCL_LIB_DIR") {
                 let lib_dir = Path::new(&lib_dir);
                 println!("cargo:rustc-link-search=native={}", lib_dir.display());
@@ -48,8 +48,7 @@ fn main() {
 
             println!("cargo:rustc-link-lib=OpenCL");
         }
-        
-        
+
         #[cfg(feature = "cuda")]
         {
             cc::Build::new()
@@ -113,11 +112,11 @@ fn main() {
                 .flag("-lOpenCL")
                 .flag("-lcrypto")
                 .compile("libeaglesong.a.4");
-            
+
             if let Some(lib_dir) = env::var_os("OPENCL_LIB_DIR") {
                 let lib_dir = Path::new(&lib_dir);
                 println!("cargo:rustc-link-search=native={}", lib_dir.display());
-            } 
+            }
             println!("cargo:rustc-link-lib=OpenCL");
         }
 

@@ -1,6 +1,6 @@
 use super::{Worker, WorkerMessage};
 use ckb_logger::{debug, error};
-use ckb_types::{packed::Byte32, prelude::*};
+use ckb_types::{packed::Byte32, prelude::*, U256};
 use crossbeam_channel::{Receiver, Sender};
 use indicatif::ProgressBar;
 use std::thread;
@@ -9,19 +9,23 @@ use std::time::{Duration, Instant};
 const STATE_UPDATE_DURATION_MILLIS: u128 = 300;
 
 extern "C" {
-    pub fn c_solve_cl(input: *const u8, target: *const u8, nonce: *mut u64, plat_id: u32, gpuid: u32) -> u32;
+    pub fn c_solve_cl(
+        input: *const u8,
+        target: *const u8,
+        nonce: *mut u64,
+        plat_id: u32,
+        gpuid: u32,
+    ) -> u32;
     pub fn c_plat_init(plat_id: u32) -> u32;
 }
 
 pub fn plat_init(plat_id: u32) -> u32 {
-    unsafe {
-        c_plat_init(plat_id)
-    }
+    unsafe { c_plat_init(plat_id) }
 }
 
 pub struct EaglesongCL {
     start: bool,
-    pow_info: Option<(Byte32, Byte32)>,
+    pow_info: Option<(Byte32, U256)>,
     seal_tx: Sender<(Byte32, u64)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
@@ -64,12 +68,12 @@ impl EaglesongCL {
     }
 
     #[inline]
-    fn solve(&mut self, pow_hash: &Byte32, target: &Byte32) -> usize {
+    fn solve(&mut self, pow_hash: &Byte32, target: &U256) -> usize {
         unsafe {
             let mut nonce = 0u64;
             let ns = c_solve_cl(
                 pow_hash.as_slice().as_ptr(),
-                target.as_slice().as_ptr(),
+                target.to_be_bytes().as_ptr(),
                 &mut nonce,
                 self.plat_id,
                 self.gpuid,
@@ -115,7 +119,6 @@ impl Worker for EaglesongCL {
                         state_update_counter = 0;
                         start = Instant::now();
                     }
-
                 }
             } else {
                 // reset state and sleep
