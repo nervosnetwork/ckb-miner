@@ -12,7 +12,7 @@ extern "C" {
     pub fn c_solve_cl(
         input: *const u8,
         target: *const u8,
-        nonce: *mut u64,
+        nonce: *mut u8,
         plat_id: u32,
         gpuid: u32,
     ) -> u32;
@@ -26,7 +26,7 @@ pub fn plat_init(plat_id: u32) -> u32 {
 pub struct EaglesongCL {
     start: bool,
     pow_info: Option<(Byte32, U256)>,
-    seal_tx: Sender<(Byte32, u64)>,
+    seal_tx: Sender<(Byte32, u128)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
     plat_id: u32,
@@ -35,7 +35,7 @@ pub struct EaglesongCL {
 
 impl EaglesongCL {
     pub fn new(
-        seal_tx: Sender<(Byte32, u64)>,
+        seal_tx: Sender<(Byte32, u128)>,
         worker_rx: Receiver<WorkerMessage>,
         plat_id: u32,
         gpuid: u32,
@@ -70,14 +70,15 @@ impl EaglesongCL {
     #[inline]
     fn solve(&mut self, pow_hash: &Byte32, target: &U256) -> usize {
         unsafe {
-            let mut nonce = 0u64;
+            let mut nonce = [0u8; 16];
             let ns = c_solve_cl(
                 pow_hash.as_slice().as_ptr(),
                 target.to_be_bytes().as_ptr(),
-                &mut nonce,
+                nonce.as_mut_ptr(),
                 self.plat_id,
                 self.gpuid,
             );
+            let nonce = u128::from_le_bytes(nonce);
             if nonce != 0 {
                 debug!(
                     "send new found seal, pow_hash {:x}, nonce {:?}",

@@ -14,7 +14,7 @@
 #include "eaglesong.h"
 
 #define INPUT_LEN (32)
-#define N ((INPUT_LEN+8+1)+3) >> 2
+#define N ((INPUT_LEN+16+1)+3) >> 2
 #define M (INPUT_LEN >> 2)
 #define OUTPUT_LEN 32
 #define THREADS_PER_BLOCK  (512)
@@ -105,14 +105,15 @@ __global__ void g_eaglesong(uint32_t *state, uint8_t* target, uint32_t *nonce_id
 	if (id < OUTPUT_LEN) shared_target[id] = target[id];
 	__syncthreads();
 
-	s0 = shared_state[0] ^ (global_id+1);
+	s0 = shared_state[0];
 	s1 = shared_state[1]; s2 = shared_state[2]; s3 = shared_state[3];
 	s4 = shared_state[4]; s5 = shared_state[5]; s6 = shared_state[6]; s7 = shared_state[7];
 	s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = 0;
 	
 	EaglesongPermutation();
 	
-	s0 ^= shared_state[8]; s1 ^= shared_state[9]; s2 ^= shared_state[10];
+	s0 ^= (shared_state[8]^(global_id+1)); s1 ^= shared_state[9]; s2 ^= shared_state[10];
+	s3 ^= shared_state[11]; s4 ^= shared_state[12];
 	
 	EaglesongPermutation();
 
@@ -244,17 +245,16 @@ void GPU_Count()
 }
 
 extern "C" {
-	uint32_t c_solve_cuda(uint8_t *input, uint8_t *target, uint64_t *nonce, uint32_t gpuid) {
+	uint32_t c_solve_cuda(uint8_t *input, uint8_t *target, uint8_t *nonce, uint32_t gpuid) {
 		while(!gpu_divices[gpuid]) {
 			gpu_divices[gpuid] = New_GPU_DEVICE();
 		}
 
 		uint32_t ret;
-		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[0]), 4);
-		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[1]), 4);
+		int j = 0;
 
 		// absorbing
-		for(int j = 0, k=0; j <= M; ++j) {
+		for(int k=0; j < M; ++j) {
 			uint32_t sum = 0;
 			for(int v=0; v < 4; ++v) {
 				if(k < INPUT_LEN) {
@@ -264,8 +264,16 @@ extern "C" {
 				}
 				++k;
 			}
-			gpu_divices[gpuid]->state[j+2] = sum;
+			gpu_divices[gpuid]->state[j] = sum;
 		}
+
+		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[j]), 4);
+		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[j+1]), 4);
+		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[j+2]), 4);
+		RAND_bytes((uint8_t*) &(gpu_divices[gpuid]->state[j+3]), 4);
+		gpu_divices[gpuid]->state[j+4] = DELIMITER;
+
+
 		gpu_divices[gpuid]->target = target;
 		gpu_divices[gpuid]->nonce_id = 0;
 
@@ -273,8 +281,10 @@ extern "C" {
 		ret = gpu_hash(gpuid);
 
 		if(gpu_divices[gpuid]->nonce_id) {
-			*nonce = le32toh(htobe32(gpu_divices[gpuid]->state[1]));
-			*nonce = (*nonce << 32) ^ le32toh(htobe32(((gpu_divices[gpuid]->state[0])^(gpu_divices[gpuid]->nonce_id))));
+			((uint32_t*)nonce)[0] = le32toh(htobe32(((gpu_divices[gpuid]->state[8])^(gpu_divices[gpuid]->nonce_id))));
+			((uint32_t*)nonce)[1] = le32toh(htobe32(gpu_divices[gpuid]->state[9]));
+			((uint32_t*)nonce)[2] = le32toh(htobe32(gpu_divices[gpuid]->state[10]));
+			((uint32_t*)nonce)[3] = le32toh(htobe32(gpu_divices[gpuid]->state[11]));
 		}
 
 		return ret;

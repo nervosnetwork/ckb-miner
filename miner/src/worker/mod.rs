@@ -42,7 +42,7 @@ const PROGRESS_BAR_TEMPLATE: &str = "{prefix:.bold.dim} {spinner:.green} [{elaps
 
 pub fn start_worker(
     config: MinerConfig,
-    seal_tx: Sender<(Byte32, u64)>,
+    seal_tx: Sender<(Byte32, u128)>,
     mp: &MultiProgress,
 ) -> WorkerController {
     let mut worker_txs = Vec::new();

@@ -18,7 +18,7 @@ pub struct Miner {
     pub client: Client,
     pub works: Arc<Mutex<LruCache<Byte32, Work>>>,
     pub worker_controller: WorkerController,
-    pub seal_rx: Receiver<(Byte32, u64)>,
+    pub seal_rx: Receiver<(Byte32, u128)>,
     pub pb: ProgressBar,
     pub seals_found: u64,
     pub stderr_is_tty: bool,
@@ -85,7 +85,7 @@ impl Miner {
         }
     }
 
-    fn submit_seal(&mut self, pow_hash: Byte32, nonce: u64) {
+    fn submit_seal(&mut self, pow_hash: Byte32, nonce: u128) {
         let new_work = { self.works.lock().get_refresh(&pow_hash).cloned() };
         if let Some(work) = new_work {
             let raw_header = work.block.header().raw();

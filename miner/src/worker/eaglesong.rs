@@ -9,15 +9,15 @@ use std::time::{Duration, Instant};
 const STATE_UPDATE_DURATION_MILLIS: u128 = 300;
 
 extern "C" {
-    pub fn c_solve(input: *const u8, target: *const u8, nonce: *mut u64) -> u32;
-    pub fn c_solve_avx2(input: *const u8, target: *const u8, nonce: *mut u64) -> u32;
-    pub fn c_solve_avx512(input: *const u8, target: *const u8, nonce: *mut u64) -> u32;
+    pub fn c_solve(input: *const u8, target: *const u8, nonce: *mut u8) -> u32;
+    pub fn c_solve_avx2(input: *const u8, target: *const u8, nonce: *mut u8) -> u32;
+    pub fn c_solve_avx512(input: *const u8, target: *const u8, nonce: *mut u8) -> u32;
 }
 
 pub struct EaglesongCpu {
     start: bool,
     pow_info: Option<(Byte32, U256)>,
-    seal_tx: Sender<(Byte32, u64)>,
+    seal_tx: Sender<(Byte32, u128)>,
     worker_rx: Receiver<WorkerMessage>,
     seal_candidates_found: u64,
     arch: u32,
@@ -25,7 +25,7 @@ pub struct EaglesongCpu {
 
 impl EaglesongCpu {
     pub fn new(
-        seal_tx: Sender<(Byte32, u64)>,
+        seal_tx: Sender<(Byte32, u128)>,
         worker_rx: Receiver<WorkerMessage>,
         arch: u32,
     ) -> Self {
@@ -58,26 +58,26 @@ impl EaglesongCpu {
     #[inline]
     fn solve(&mut self, pow_hash: &Byte32, target: &U256) -> usize {
         unsafe {
-            let mut nonce = 0u64;
+            let mut nonce = [0u8; 16];
             let ns = match self.arch {
                 0 => c_solve(
                     pow_hash.as_slice().as_ptr(),
                     target.to_be_bytes().as_ptr(),
-                    &mut nonce,
+                    nonce.as_mut_ptr(),
                 ),
                 1 => c_solve_avx2(
                     pow_hash.as_slice().as_ptr(),
                     target.to_be_bytes().as_ptr(),
-                    &mut nonce,
+                    nonce.as_mut_ptr(),
                 ),
                 2 => c_solve_avx512(
                     pow_hash.as_slice().as_ptr(),
                     target.to_be_bytes().as_ptr(),
-                    &mut nonce,
+                    nonce.as_mut_ptr(),
                 ),
                 _ => unreachable!(),
             };
-
+            let nonce = u128::from_le_bytes(nonce);
             if nonce != 0 {
                 debug!(
                     "send new found seal, pow_hash {:x}, nonce {:?}",

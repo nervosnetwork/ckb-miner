@@ -9,7 +9,7 @@
 #include "portable_endian.h"
 
 #define INPUT_LEN (32)
-#define N (((INPUT_LEN+8+1)+3) >> 2)
+#define N (((INPUT_LEN+16+1)+3) >> 2)
 #define M (INPUT_LEN >> 2)
 #define OUTPUT_LEN (32)
 #define THREADS_PER_BLOCK  (256)
@@ -128,7 +128,7 @@ __kernel void eaglesongcl(__global uint *state, __global unsigned char* target, 
 	barrier(CLK_LOCAL_MEM_FENCE);
 
 	
-	s0 = shared_state[0] ^ (global_id + 1);
+	s0 = shared_state[0];
 	s1 = shared_state[1]; s2 = shared_state[2]; s3 = shared_state[3];
 	s4 = shared_state[4]; s5 = shared_state[5]; s6 = shared_state[6]; s7 = shared_state[7];
 	s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = 0;
@@ -184,7 +184,8 @@ __kernel void eaglesongcl(__global uint *state, __global unsigned char* target, 
 		}
 		if (k==0)
 		{ 
-			s0 ^= shared_state[8]; s1 ^= shared_state[9]; s2 ^= shared_state[10]; 
+			s0 ^= (shared_state[8] ^ (global_id + 1)); s1 ^= shared_state[9]; s2 ^= shared_state[10];
+			s3 ^= shared_state[11]; s4 ^= shared_state[12];
 		}
 		k++;
 	}
@@ -255,7 +256,7 @@ GPU_DEVICE* New_GPU_DEVICE()
 	return p;
 }
 
-uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devices, size_t gpu_id, size_t p_id, cl_int  status, uint8_t *input, uint8_t *target, uint64_t *nonce)
+uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devices, size_t gpu_id, size_t p_id, cl_int  status, uint8_t *input, uint8_t *target, uint8_t *nonce)
 {
 	size_t globalThreads[] = { HASH_NUM };
 	size_t localThreads[] = { THREADS_PER_BLOCK };
@@ -278,11 +279,9 @@ uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devic
 
 	if (dev->g_state == NULL)dev->g_state = clCreateBuffer(context, CL_MEM_ALLOC_HOST_PTR, N * sizeof(uint32_t), NULL, &status);
 	if (status != CL_SUCCESS) { printf("Error: Create Buffer, g_state. (clCreateBuffer)\n"); goto end; }
+	
 
-	RAND_bytes((uint8_t*)&(dev->state[0]), 4);
-	RAND_bytes((uint8_t*)&(dev->state[1]), 4);
-
-	for (int j = 0, k = 0; j <= M; ++j) {
+	for (int j = 0, k = 0; j < M; ++j) {
 		uint32_t sum = 0;
 		for (int v = 0; v < 4; ++v) {
 			if (k < INPUT_LEN) {
@@ -293,8 +292,14 @@ uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devic
 			}
 			++k;
 		}
-		dev->state[j + 2] = sum;
+		dev->state[j] = sum;
 	}
+
+	RAND_bytes((uint8_t*)&(dev->state[8]), 4);
+	RAND_bytes((uint8_t*)&(dev->state[9]), 4);
+	RAND_bytes((uint8_t*)&(dev->state[10]), 4);
+	RAND_bytes((uint8_t*)&(dev->state[11]), 4);
+	dev->state[12] = DELIMITER;
 
 	dev->target = target;
 	dev->nonce_id = 0;
@@ -328,8 +333,10 @@ uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devic
 
 	if (dev->nonce_id)
 	{
-		*nonce = le32toh(htobe32(dev->state[1]));
-		*nonce = (*nonce << 32) ^ le32toh(htobe32(((dev->state[0]) ^ (dev->nonce_id))));
+		((uint32_t*)nonce)[0] = le32toh(htobe32(((dev->state[8]) ^ (dev->nonce_id))));
+		((uint32_t*)nonce)[1] = le32toh(htobe32(dev->state[9]));
+		((uint32_t*)nonce)[2] = le32toh(htobe32(dev->state[10]));
+		((uint32_t*)nonce)[3] = le32toh(htobe32(dev->state[11]));
 	}
 
 	return HASH_NUM;
@@ -417,7 +424,7 @@ extern "C" {
 		return 0;
 	}
 
-	uint32_t c_solve_cl(uint8_t *input, uint8_t *target, uint64_t *nonce, uint32_t plat_id, uint32_t gpuid)
+	uint32_t c_solve_cl(uint8_t *input, uint8_t *target, uint8_t *nonce, uint32_t plat_id, uint32_t gpuid)
 	{
 		if (plat_info[plat_id] == NULL)
 		{

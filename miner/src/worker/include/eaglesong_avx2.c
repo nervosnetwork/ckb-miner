@@ -59,21 +59,18 @@ uint32_t injection_constants_1[] = INJECT_MAT;
     } \
 }
 
-uint32_t c_solve_avx2(uint8_t *input, uint8_t *target, uint64_t *nonce) {
+uint32_t c_solve_avx2(uint8_t *input, uint8_t *target, uint8_t *nonce) {
     u256 s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15;
-    u256 state[11];
-    uint32_t rand1, rand2;
+    u256 state[16];
+    u256 state2[5];
+    uint32_t rand1, rand2, rand3, rand4;
     u256 flag, tmp;
     uint8_t output[8][32];
     uint32_t *ans;
-    RAND_bytes((uint8_t*) &rand1, 4);
-    RAND_bytes((uint8_t*) &rand2, 4);
-    flag = SET(7,6,5,4,3,2,1,0);
-    state[0] = SET1(rand1);
-    state[1] = SET1(rand2);
+    int j = 0;
     
     // absorbing
-    for(int j = 0, k=0; j <= M; ++j) {
+    for(int k=0; j < M; ++j) {
         uint32_t sum = 0;
         for(int v=0; v < 4; ++v) {
             if(k < INPUT_LEN) {
@@ -83,30 +80,54 @@ uint32_t c_solve_avx2(uint8_t *input, uint8_t *target, uint64_t *nonce) {
             }
             ++k;
         }
-        state[j+2] = SET1(sum);
+        state[j] = SET1(sum);
     }
 
-    for(uint32_t i=0; i<N; i+=8) {
-        s0 = XOR(state[0], ADD(flag, SET1(i)));
-        s1 = state[1]; s2 = state[2]; s3 = state[3];
+    RAND_bytes((uint8_t*) &rand1, 4);
+    RAND_bytes((uint8_t*) &rand2, 4);
+    RAND_bytes((uint8_t*) &rand3, 4);
+    RAND_bytes((uint8_t*) &rand4, 4);
+    flag = SET(7,6,5,4,3,2,1,0);
+    state2[0] = SET1(rand1);
+    state2[1] = SET1(rand2);
+    state2[2] = SET1(rand3);
+    state2[3] = SET1(rand4);
+    state2[4] = SET1(DELIMITER);
+
+    s0 = state[0];
+    s1 = state[1]; s2 = state[2]; s3 = state[3];
+    s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
+    s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = ZERO;
+    
+    EaglesongPermutation();
+
+    state[0] = s0; state[1] = s1; state[2] = s2; state[3] = s3;
+    state[4] = s4; state[5] = s5; state[6] = s6; state[7] = s7;
+    state[8] = s8; state[9] = s9; state[10] = s10; state[11] = s11;
+    state[12] = s12; state[13] = s13; state[14] = s14; state[15] = s15;
+
+    for(uint32_t i=0; i<N; i+=16) {
+        s0 = state[0]; s1 = state[1]; s2 = state[2]; s3 = state[3];
         s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
-        s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = ZERO;
-        
-        EaglesongPermutation();
-        
-        s0 = XOR(s0, state[8]); s1 = XOR(s1, state[9]); s2 = XOR(s2, state[10]);
+        s8 = state[8]; s9 = state[9]; s10 = state[10]; s11 = state[11];
+        s12 = state[12]; s13 = state[13]; s14 = state[14]; s15 = state[15];
+
+        s0 = XOR(s0, XOR(state2[0], ADD(flag, SET1(i)))); s1 = XOR(s1, state2[1]); s2 = XOR(s2, state2[2]);
+        s3 = XOR(s3, state2[3]); s4 = XOR(s4, state2[4]);
         
         EaglesongPermutation();
 
         squeeze(s0, 0); squeeze(s1, 1); squeeze(s2, 2); squeeze(s3, 3);
         squeeze(s4, 4); squeeze(s5, 5); squeeze(s6, 6); squeeze(s7, 7);
 
-        for(int j=0; j<8; ++j) {
+        for(int j=0; j<16; ++j) {
             for(int k=0; k<32; ++k) {
                 if(output[j][k] < target[k]) {
-                    *nonce = le32toh(htobe32(rand2));
-                    *nonce = (*nonce << 32) ^ le32toh(htobe32((rand1^(i|j))));
-                    return i+8;
+                    ((uint32_t*)nonce)[0] = le32toh(htobe32((rand1^(i|j))));
+                    ((uint32_t*)nonce)[1] = le32toh(htobe32(rand2));
+                    ((uint32_t*)nonce)[2] = le32toh(htobe32(rand3));
+                    ((uint32_t*)nonce)[3] = le32toh(htobe32(rand4));
+                    return i+16;
                 } else if(output[j][k] > target[k]) {
                     break;
                 }
