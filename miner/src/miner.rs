@@ -119,11 +119,11 @@ impl Miner {
 
             // draw progress bar
             {
-                self.seals_found += 1;
-                self.pb
-                    .println(format!("Found! #{} {:#x}", block.number(), block_hash));
-                self.pb
-                    .set_message(&format!("Total seals found: {:>3}", self.seals_found));
+                // self.seals_found += 1;
+                // self.pb
+                //     .println(format!("Found! #{} {:#x} {:?}", block.number(), block_hash, nonce));
+                // self.pb
+                //     .set_message(&format!("Total seals found: {:>3}", self.seals_found));
                 self.pb.inc(1);
             }
         }

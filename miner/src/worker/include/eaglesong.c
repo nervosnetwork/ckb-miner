@@ -11,7 +11,7 @@
 #define LEN (RATE >> 3)
 #define DELIMITER (0x06)
 #define OUTPUT_LENGTH (256 >> 3)
-#define N 100000
+#define N 200000
 
 #define ROL32(a,b) (((a)<<(b))|((a)>>(32-(b))))
 #define ROL_ADD(a,b) a += b; a = ROL32(a, 8); b = a + ROL32(b, 24);
@@ -44,40 +44,33 @@ uint32_t injection_constants[] = INJECT_MAT;
     ((uint32_t *)output)[k] = htole32(s); \
 }
 
+#define absorbing(s, input, i) {\
+    s = (be32toh(((uint32_t*)(input))[i])); \
+}
+
 uint32_t c_solve(uint8_t *input, uint8_t *target, uint8_t *nonce) {
     uint32_t s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15;
     uint32_t state[16];
-    uint32_t state2[5];
+    uint32_t r0, r1, r2, r3;
     uint32_t tmp;
     uint8_t output[32];
-    int j = 0;
     
     // absorbing
-    for(int k=0; j < M; ++j) {
-        uint32_t sum = 0;
-        for(int v=0; v < 4; ++v) {
-            if(k < INPUT_LEN) {
-                sum = (sum << 8) ^ input[k];
-            } else if(k == INPUT_LEN) {
-                sum = (sum << 8) ^ DELIMITER;
-            }
-            ++k;
-        }
-        state[j] = sum;
-    }
+    absorbing(s0, input, 0); absorbing(s1, input, 1);
+    absorbing(s2, input, 2); absorbing(s3, input, 3);
+    absorbing(s4, input, 4); absorbing(s5, input, 5);
+    absorbing(s6, input, 6); absorbing(s7, input, 7);
 
-    RAND_bytes((uint8_t*) &(state2[0]), 4);
-    RAND_bytes((uint8_t*) &(state2[1]), 4);
-    RAND_bytes((uint8_t*) &(state2[2]), 4);
-    RAND_bytes((uint8_t*) &(state2[3]), 4);
-    state2[4] = DELIMITER;
-
-    s0 = state[0];
-    s1 = state[1]; s2 = state[2]; s3 = state[3];
-    s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
     s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = 0;
     
     EaglesongPermutation();
+
+    RAND_bytes((uint8_t*) &r0, 4);
+    RAND_bytes((uint8_t*) &r1, 4);
+    RAND_bytes((uint8_t*) &r2, 4);
+    RAND_bytes((uint8_t*) &r3, 4);
+
+    s0 ^= r0; s1 ^= r1; s2 ^= r2; s3 ^= r3; s4 ^= DELIMITER;
 
     state[0] = s0; state[1] = s1; state[2] = s2; state[3] = s3;
     state[4] = s4; state[5] = s5; state[6] = s6; state[7] = s7;
@@ -85,14 +78,8 @@ uint32_t c_solve(uint8_t *input, uint8_t *target, uint8_t *nonce) {
     state[12] = s12; state[13] = s13; state[14] = s14; state[15] = s15;
 
     for(uint32_t i=0; i<N; ++i) {
-        s0 = state[0]; s1 = state[1]; s2 = state[2]; s3 = state[3];
-        s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
-        s8 = state[8]; s9 = state[9]; s10 = state[10]; s11 = state[11];
-        s12 = state[12]; s13 = state[13]; s14 = state[14]; s15 = state[15];
-
-        s0 ^= (state2[0]^i); s1 ^= state2[1]; s2 ^= state2[2];
-        s3 ^= state2[3]; s4 ^= state2[4];
-        
+        s0 ^= i;
+    
         EaglesongPermutation();
 
         squeeze(s0, 0); squeeze(s1, 1); squeeze(s2, 2); squeeze(s3, 3);
@@ -100,15 +87,20 @@ uint32_t c_solve(uint8_t *input, uint8_t *target, uint8_t *nonce) {
 
         for(int k=0; k<32; ++k) {
             if(output[k] < target[k]) {
-                ((uint32_t*)nonce)[0] = le32toh(htobe32((state2[0]^i)));
-                ((uint32_t*)nonce)[1] = le32toh(htobe32(state2[1]));
-                ((uint32_t*)nonce)[2] = le32toh(htobe32(state2[2]));
-                ((uint32_t*)nonce)[3] = le32toh(htobe32(state2[3]));
+                ((uint32_t*)nonce)[0] = le32toh(htobe32((r0^i)));
+                ((uint32_t*)nonce)[1] = le32toh(htobe32(r1));
+                ((uint32_t*)nonce)[2] = le32toh(htobe32(r2));
+                ((uint32_t*)nonce)[3] = le32toh(htobe32(r3));
                 return i;
             } else if(output[k] > target[k]) {
                 break;
             }
         }
+
+        s0 = state[0]; s1 = state[1]; s2 = state[2]; s3 = state[3];
+        s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
+        s8 = state[8]; s9 = state[9]; s10 = state[10]; s11 = state[11];
+        s12 = state[12]; s13 = state[13]; s14 = state[14]; s15 = state[15];
     }
 
     return N;

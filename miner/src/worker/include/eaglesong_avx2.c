@@ -12,7 +12,7 @@
 #define LEN (RATE >> 3)
 #define DELIMITER (0x06)
 #define OUTPUT_LENGTH (256 >> 3)
-#define N 1600000
+#define N 3200000
 
 
 #define SL(x, b)     _mm256_slli_epi32 ((x), (b))
@@ -59,80 +59,72 @@ uint32_t injection_constants_1[] = INJECT_MAT;
     } \
 }
 
+#define absorbing(s, input, i) {\
+    s = SET1(be32toh(((uint32_t*)(input))[i])); \
+}
+
 uint32_t c_solve_avx2(uint8_t *input, uint8_t *target, uint8_t *nonce) {
     u256 s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15;
     u256 state[16];
-    u256 state2[5];
-    uint32_t rand1, rand2, rand3, rand4;
+    uint32_t r0, r1, r2, r3;
     u256 flag, tmp;
     uint8_t output[8][32];
     uint32_t *ans;
-    int j = 0;
-    
+
     // absorbing
-    for(int k=0; j < M; ++j) {
-        uint32_t sum = 0;
-        for(int v=0; v < 4; ++v) {
-            if(k < INPUT_LEN) {
-                sum = (sum << 8) ^ input[k];
-            } else if(k == INPUT_LEN) {
-                sum = (sum << 8) ^ DELIMITER;
-            }
-            ++k;
-        }
-        state[j] = SET1(sum);
-    }
+    absorbing(s0, input, 0); absorbing(s1, input, 1);
+    absorbing(s2, input, 2); absorbing(s3, input, 3);
+    absorbing(s4, input, 4); absorbing(s5, input, 5);
+    absorbing(s6, input, 6); absorbing(s7, input, 7);
 
-    RAND_bytes((uint8_t*) &rand1, 4);
-    RAND_bytes((uint8_t*) &rand2, 4);
-    RAND_bytes((uint8_t*) &rand3, 4);
-    RAND_bytes((uint8_t*) &rand4, 4);
-    flag = SET(7,6,5,4,3,2,1,0);
-    state2[0] = SET1(rand1);
-    state2[1] = SET1(rand2);
-    state2[2] = SET1(rand3);
-    state2[3] = SET1(rand4);
-    state2[4] = SET1(DELIMITER);
-
-    s0 = state[0];
-    s1 = state[1]; s2 = state[2]; s3 = state[3];
-    s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
     s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = ZERO;
     
     EaglesongPermutation();
+
+    RAND_bytes((uint8_t*) &r0, 4);
+    RAND_bytes((uint8_t*) &r1, 4);
+    RAND_bytes((uint8_t*) &r2, 4);
+    RAND_bytes((uint8_t*) &r3, 4);
+    
+    flag = SET(7,6,5,4,3,2,1,0);
+    s0 = XOR(s0, SET1(r0));
+    s1 = XOR(s1, SET1(r1));
+    s2 = XOR(s2, SET1(r2));
+    s3 = XOR(s3, SET1(r3));
+    s4 = XOR(s4, SET1(DELIMITER));
 
     state[0] = s0; state[1] = s1; state[2] = s2; state[3] = s3;
     state[4] = s4; state[5] = s5; state[6] = s6; state[7] = s7;
     state[8] = s8; state[9] = s9; state[10] = s10; state[11] = s11;
     state[12] = s12; state[13] = s13; state[14] = s14; state[15] = s15;
 
-    for(uint32_t i=0; i<N; i+=16) {
-        s0 = state[0]; s1 = state[1]; s2 = state[2]; s3 = state[3];
-        s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
-        s8 = state[8]; s9 = state[9]; s10 = state[10]; s11 = state[11];
-        s12 = state[12]; s13 = state[13]; s14 = state[14]; s15 = state[15];
-
-        s0 = XOR(s0, XOR(state2[0], ADD(flag, SET1(i)))); s1 = XOR(s1, state2[1]); s2 = XOR(s2, state2[2]);
-        s3 = XOR(s3, state2[3]); s4 = XOR(s4, state2[4]);
+    for(uint32_t i=0; i<N; i+=8) {
+        s0 = XOR(s0, ADD(flag, SET1(i)));
         
         EaglesongPermutation();
 
         squeeze(s0, 0); squeeze(s1, 1); squeeze(s2, 2); squeeze(s3, 3);
         squeeze(s4, 4); squeeze(s5, 5); squeeze(s6, 6); squeeze(s7, 7);
 
-        for(int j=0; j<16; ++j) {
+        for(int j=0; j<8; ++j) {
             for(int k=0; k<32; ++k) {
                 if(output[j][k] < target[k]) {
-                    ((uint32_t*)nonce)[0] = le32toh(htobe32((rand1^(i|j))));
-                    ((uint32_t*)nonce)[1] = le32toh(htobe32(rand2));
-                    ((uint32_t*)nonce)[2] = le32toh(htobe32(rand3));
-                    ((uint32_t*)nonce)[3] = le32toh(htobe32(rand4));
+                    ((uint32_t*)nonce)[0] = htobe32((r0^(i|j)));
+                    ((uint32_t*)nonce)[1] = htobe32(r1);
+                    ((uint32_t*)nonce)[2] = htobe32(r2);
+                    ((uint32_t*)nonce)[3] = htobe32(r3);
+
                     return i+16;
                 } else if(output[j][k] > target[k]) {
                     break;
                 }
             }
         }
+
+        s0 = state[0]; s1 = state[1]; s2 = state[2]; s3 = state[3];
+        s4 = state[4]; s5 = state[5]; s6 = state[6]; s7 = state[7];
+        s8 = state[8]; s9 = state[9]; s10 = state[10]; s11 = state[11];
+        s12 = state[12]; s13 = state[13]; s14 = state[14]; s15 = state[15];
     }
 
     return N;

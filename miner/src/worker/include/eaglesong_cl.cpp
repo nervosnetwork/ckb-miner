@@ -9,7 +9,7 @@
 #include "portable_endian.h"
 
 #define INPUT_LEN (32)
-#define N (((INPUT_LEN+16+1)+3) >> 2)
+#define N 16
 #define M (INPUT_LEN >> 2)
 #define OUTPUT_LEN (32)
 #define THREADS_PER_BLOCK  (256)
@@ -18,6 +18,38 @@
 #define HASH_NUM (1<<27)
 #define DELIMITER (0x06)
 
+#define ROUND (43)
+
+#define ROL32(a,b) (((a)<<(b))|((a)>>(32-(b))))
+#define ROL_ADD(a,b) a += b; a = ROL32(a, 8); b = a + ROL32(b, 24);
+#define ROL_XOR(t, a, b, k) t^ROL32(t, a)^ROL32(t, b)^injection_constants_3[k]
+
+uint32_t injection_constants_3[] = INJECT_MAT;
+
+#define EaglesongPermutation() { \
+    for(int i = 0, k=0; i < ROUND ; ++i ) { \
+        tmp = s0^s4^s12^s15; s0 = tmp^s5^s6^s7; s1 = tmp^s1^s8^s13; \
+        tmp = s1^s2^s6^s14; s2 = tmp^s7^s8^s9; s3 = tmp^s3^s10^s15; \
+        tmp = s0^s3^s4^s8; s4 = tmp^s9^s10^s11; s5 = tmp^s1^s5^s12; \
+        tmp = s2^s5^s6^s10; s6 = tmp^s11^s12^s13; s7 = tmp^s3^s7^s14; \
+        tmp = s4^s7^s8^s12; s8 = tmp^s13^s14^s15; s9 = tmp^s0^s5^s9; \
+        tmp = s6^s9^s10^s14; s10 = tmp^s0^s1^s15; s11 = tmp^s2^s7^s11; \
+        tmp = s0^s8^s11^s12; s12 = tmp^s1^s2^s3; s13 = tmp^s4^s9^s13; \
+        tmp = s3^s5^s13^s14; s14 = tmp^s2^s4^s10; s15 = tmp^s0^s1^s6^s7^s8^s9^s15; \
+        s0 = ROL_XOR(s0, 2, 4, k); ++k; s1 = ROL_XOR(s1, 13, 22, k); ++k; ROL_ADD(s0, s1); \
+        s2 = ROL_XOR(s2, 4, 19, k); ++k; s3 = ROL_XOR(s3, 3, 14, k); ++k; ROL_ADD(s2, s3); \
+        s4 = ROL_XOR(s4, 27, 31, k); ++k; s5 = ROL_XOR(s5, 3, 8, k); ++k; ROL_ADD(s4, s5); \
+        s6 = ROL_XOR(s6, 17, 26, k); ++k; s7 = ROL_XOR(s7, 3, 12, k); ++k; ROL_ADD(s6, s7); \
+        s8 = ROL_XOR(s8, 18, 22, k); ++k; s9 = ROL_XOR(s9, 12, 18, k); ++k; ROL_ADD(s8, s9); \
+        s10 = ROL_XOR(s10, 4, 7, k); ++k; s11 = ROL_XOR(s11, 4, 31, k); ++k; ROL_ADD(s10, s11); \
+        s12 = ROL_XOR(s12, 12, 27, k); ++k; s13 = ROL_XOR(s13, 7, 17, k); ++k; ROL_ADD(s12, s13); \
+        s14 = ROL_XOR(s14, 7, 8, k); ++k; s15 = ROL_XOR(s15, 1, 13, k); ++k; ROL_ADD(s14, s15); \
+    } \
+}
+
+#define absorbing(s, input, i) {\
+    s = (be32toh(((uint32_t*)(input))[i])); \
+}
 
 #define KERNEL(...)#__VA_ARGS__
 const char *kernelSourceCode = KERNEL(
@@ -120,74 +152,65 @@ __kernel void eaglesongcl(__global uint *state, __global unsigned char* target, 
 	unsigned char output[32]; //OUTPUT_LEN
 	int i, j, k;
 
-	__local uint shared_state[11];//N
+	__local uint shared_state[16];//N
 	__local unsigned char shared_target[32];//OUTPUT_LEN
 
-	if (id < 11) shared_state[id] = state[id];//N
+	if (id < 16) shared_state[id] = state[id];//N
 	if (id < 32) shared_target[id] = target[id];
 	barrier(CLK_LOCAL_MEM_FENCE);
 
 	
-	s0 = shared_state[0];
+	s0 = shared_state[0] ^ (global_id+1);
 	s1 = shared_state[1]; s2 = shared_state[2]; s3 = shared_state[3];
 	s4 = shared_state[4]; s5 = shared_state[5]; s6 = shared_state[6]; s7 = shared_state[7];
-	s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = 0;
+	s8 = shared_state[8]; s9 = shared_state[9]; s10 = shared_state[10]; s11 = shared_state[11];
+	s12 = shared_state[12]; s13 = shared_state[13]; s14 = shared_state[14]; s15 = shared_state[15];
 	
 
-	k = 0;
-	while (k < 2)
+	for (i = 0, j = 0; i < 43; ++i, j += 16)//ROUND
 	{
-		for (i = 0, j = 0; i < 43; ++i, j += 16)//ROUND
-		{
-			tmp = s0 ^ s4 ^ s12 ^ s15; s0 = tmp^s5 ^ s6 ^ s7; s1 = tmp^s1 ^ s8 ^ s13;
-			tmp = s1 ^ s2 ^ s6 ^ s14; s2 = tmp^s7 ^ s8 ^ s9; s3 = tmp^s3 ^ s10 ^ s15;
-			tmp = s0 ^ s3 ^ s4 ^ s8; s4 = tmp^s9 ^ s10 ^ s11; s5 = tmp^s1 ^ s5 ^ s12;
-			tmp = s2 ^ s5 ^ s6 ^ s10; s6 = tmp^s11 ^ s12 ^ s13; s7 = tmp^s3 ^ s7 ^ s14;
-			tmp = s4 ^ s7 ^ s8 ^ s12; s8 = tmp^s13 ^ s14 ^ s15; s9 = tmp^s0 ^ s5 ^ s9;
-			tmp = s6 ^ s9 ^ s10 ^ s14; s10 = tmp^s0 ^ s1 ^ s15; s11 = tmp^s2 ^ s7 ^ s11;
-			tmp = s0 ^ s8 ^ s11 ^ s12; s12 = tmp^s1 ^ s2 ^ s3; s13 = tmp^s4 ^ s9 ^ s13;
-			tmp = s3 ^ s5 ^ s13 ^ s14; s14 = tmp^s2 ^ s4 ^ s10; s15 = tmp^s0 ^ s1 ^ s6 ^ s7 ^ s8 ^ s9 ^ s15;
+		tmp = s0 ^ s4 ^ s12 ^ s15; s0 = tmp^s5 ^ s6 ^ s7; s1 = tmp^s1 ^ s8 ^ s13;
+		tmp = s1 ^ s2 ^ s6 ^ s14; s2 = tmp^s7 ^ s8 ^ s9; s3 = tmp^s3 ^ s10 ^ s15;
+		tmp = s0 ^ s3 ^ s4 ^ s8; s4 = tmp^s9 ^ s10 ^ s11; s5 = tmp^s1 ^ s5 ^ s12;
+		tmp = s2 ^ s5 ^ s6 ^ s10; s6 = tmp^s11 ^ s12 ^ s13; s7 = tmp^s3 ^ s7 ^ s14;
+		tmp = s4 ^ s7 ^ s8 ^ s12; s8 = tmp^s13 ^ s14 ^ s15; s9 = tmp^s0 ^ s5 ^ s9;
+		tmp = s6 ^ s9 ^ s10 ^ s14; s10 = tmp^s0 ^ s1 ^ s15; s11 = tmp^s2 ^ s7 ^ s11;
+		tmp = s0 ^ s8 ^ s11 ^ s12; s12 = tmp^s1 ^ s2 ^ s3; s13 = tmp^s4 ^ s9 ^ s13;
+		tmp = s3 ^ s5 ^ s13 ^ s14; s14 = tmp^s2 ^ s4 ^ s10; s15 = tmp^s0 ^ s1 ^ s6 ^ s7 ^ s8 ^ s9 ^ s15;
 
-			s0 ^= (((s0) << (2)) | ((s0) >> (32 - (2)))) ^ (((s0) << (4)) | ((s0) >> (32 - (4)))) ^ gpu_injection_constants[(j ^ 0)];
-			s1 ^= (((s1) << (13)) | ((s1) >> (32 - (13)))) ^ (((s1) << (22)) | ((s1) >> (32 - (22)))) ^ gpu_injection_constants[(j ^ 1)];
-			s0 += s1; s0 = (((s0) << (8)) | ((s0) >> (32 - (8)))); s1 = (((s1) << (24)) | ((s1) >> (32 - (24)))) + s0;
+		s0 ^= (((s0) << (2)) | ((s0) >> (32 - (2)))) ^ (((s0) << (4)) | ((s0) >> (32 - (4)))) ^ gpu_injection_constants[(j ^ 0)];
+		s1 ^= (((s1) << (13)) | ((s1) >> (32 - (13)))) ^ (((s1) << (22)) | ((s1) >> (32 - (22)))) ^ gpu_injection_constants[(j ^ 1)];
+		s0 += s1; s0 = (((s0) << (8)) | ((s0) >> (32 - (8)))); s1 = (((s1) << (24)) | ((s1) >> (32 - (24)))) + s0;
 
-			s2 ^= (((s2) << (4)) | ((s2) >> (32 - (4)))) ^ (((s2) << (19)) | ((s2) >> (32 - (19)))) ^ gpu_injection_constants[(j ^ 2)];
-			s3 ^= (((s3) << (3)) | ((s3) >> (32 - (3)))) ^ (((s3) << (14)) | ((s3) >> (32 - (14)))) ^ gpu_injection_constants[(j ^ 3)];
-			s2 += s3; s2 = (((s2) << (8)) | ((s2) >> (32 - (8)))); s3 = (((s3) << (24)) | ((s3) >> (32 - (24)))) + s2;
+		s2 ^= (((s2) << (4)) | ((s2) >> (32 - (4)))) ^ (((s2) << (19)) | ((s2) >> (32 - (19)))) ^ gpu_injection_constants[(j ^ 2)];
+		s3 ^= (((s3) << (3)) | ((s3) >> (32 - (3)))) ^ (((s3) << (14)) | ((s3) >> (32 - (14)))) ^ gpu_injection_constants[(j ^ 3)];
+		s2 += s3; s2 = (((s2) << (8)) | ((s2) >> (32 - (8)))); s3 = (((s3) << (24)) | ((s3) >> (32 - (24)))) + s2;
 
-			s4 ^= (((s4) << (27)) | ((s4) >> (32 - (27)))) ^ (((s4) << (31)) | ((s4) >> (32 - (31)))) ^ gpu_injection_constants[(j ^ 4)];
-			s5 ^= (((s5) << (3)) | ((s5) >> (32 - (3)))) ^ (((s5) << (8)) | ((s5) >> (32 - (8)))) ^ gpu_injection_constants[(j ^ 5)];
-			s4 += s5; s4 = (((s4) << (8)) | ((s4) >> (32 - (8)))); s5 = (((s5) << (24)) | ((s5) >> (32 - (24)))) + s4;
+		s4 ^= (((s4) << (27)) | ((s4) >> (32 - (27)))) ^ (((s4) << (31)) | ((s4) >> (32 - (31)))) ^ gpu_injection_constants[(j ^ 4)];
+		s5 ^= (((s5) << (3)) | ((s5) >> (32 - (3)))) ^ (((s5) << (8)) | ((s5) >> (32 - (8)))) ^ gpu_injection_constants[(j ^ 5)];
+		s4 += s5; s4 = (((s4) << (8)) | ((s4) >> (32 - (8)))); s5 = (((s5) << (24)) | ((s5) >> (32 - (24)))) + s4;
 
-			s6 ^= (((s6) << (17)) | ((s6) >> (32 - (17)))) ^ (((s6) << (26)) | ((s6) >> (32 - (26)))) ^ gpu_injection_constants[(j ^ 6)];
-			s7 ^= (((s7) << (3)) | ((s7) >> (32 - (3)))) ^ (((s7) << (12)) | ((s7) >> (32 - (12)))) ^ gpu_injection_constants[(j ^ 7)];
-			s6 += s7; s6 = (((s6) << (8)) | ((s6) >> (32 - (8)))); s7 = (((s7) << (24)) | ((s7) >> (32 - (24)))) + s6;
+		s6 ^= (((s6) << (17)) | ((s6) >> (32 - (17)))) ^ (((s6) << (26)) | ((s6) >> (32 - (26)))) ^ gpu_injection_constants[(j ^ 6)];
+		s7 ^= (((s7) << (3)) | ((s7) >> (32 - (3)))) ^ (((s7) << (12)) | ((s7) >> (32 - (12)))) ^ gpu_injection_constants[(j ^ 7)];
+		s6 += s7; s6 = (((s6) << (8)) | ((s6) >> (32 - (8)))); s7 = (((s7) << (24)) | ((s7) >> (32 - (24)))) + s6;
 
 
 
-			s8 ^= (((s8) << (18)) | ((s8) >> (32 - (18)))) ^ (((s8) << (22)) | ((s8) >> (32 - (22)))) ^ gpu_injection_constants[(j ^ 8)];
-			s9 ^= (((s9) << (12)) | ((s9) >> (32 - (12)))) ^ (((s9) << (18)) | ((s9) >> (32 - (18)))) ^ gpu_injection_constants[(j ^ 9)];
-			s8 += s9; s8 = (((s8) << (8)) | ((s8) >> (32 - (8)))); s9 = (((s9) << (24)) | ((s9) >> (32 - (24)))) + s8;
+		s8 ^= (((s8) << (18)) | ((s8) >> (32 - (18)))) ^ (((s8) << (22)) | ((s8) >> (32 - (22)))) ^ gpu_injection_constants[(j ^ 8)];
+		s9 ^= (((s9) << (12)) | ((s9) >> (32 - (12)))) ^ (((s9) << (18)) | ((s9) >> (32 - (18)))) ^ gpu_injection_constants[(j ^ 9)];
+		s8 += s9; s8 = (((s8) << (8)) | ((s8) >> (32 - (8)))); s9 = (((s9) << (24)) | ((s9) >> (32 - (24)))) + s8;
 
-			s10 ^= (((s10) << (4)) | ((s10) >> (32 - (4)))) ^ (((s10) << (7)) | ((s10) >> (32 - (7)))) ^ gpu_injection_constants[(j ^ 10)];
-			s11 ^= (((s11) << (4)) | ((s11) >> (32 - (4)))) ^ (((s11) << (31)) | ((s11) >> (32 - (31)))) ^ gpu_injection_constants[(j ^ 11)];
-			s10 += s11; s10 = (((s10) << (8)) | ((s10) >> (32 - (8)))); s11 = (((s11) << (24)) | ((s11) >> (32 - (24)))) + s10;
+		s10 ^= (((s10) << (4)) | ((s10) >> (32 - (4)))) ^ (((s10) << (7)) | ((s10) >> (32 - (7)))) ^ gpu_injection_constants[(j ^ 10)];
+		s11 ^= (((s11) << (4)) | ((s11) >> (32 - (4)))) ^ (((s11) << (31)) | ((s11) >> (32 - (31)))) ^ gpu_injection_constants[(j ^ 11)];
+		s10 += s11; s10 = (((s10) << (8)) | ((s10) >> (32 - (8)))); s11 = (((s11) << (24)) | ((s11) >> (32 - (24)))) + s10;
 
-			s12 ^= (((s12) << (12)) | ((s12) >> (32 - (12)))) ^ (((s12) << (27)) | ((s12) >> (32 - (27)))) ^ gpu_injection_constants[(j ^ 12)];
-			s13 ^= (((s13) << (7)) | ((s13) >> (32 - (7)))) ^ (((s13) << (17)) | ((s13) >> (32 - (17)))) ^ gpu_injection_constants[(j ^ 13)];
-			s12 += s13; s12 = (((s12) << (8)) | ((s12) >> (32 - (8)))); s13 = (((s13) << (24)) | ((s13) >> (32 - (24)))) + s12;
+		s12 ^= (((s12) << (12)) | ((s12) >> (32 - (12)))) ^ (((s12) << (27)) | ((s12) >> (32 - (27)))) ^ gpu_injection_constants[(j ^ 12)];
+		s13 ^= (((s13) << (7)) | ((s13) >> (32 - (7)))) ^ (((s13) << (17)) | ((s13) >> (32 - (17)))) ^ gpu_injection_constants[(j ^ 13)];
+		s12 += s13; s12 = (((s12) << (8)) | ((s12) >> (32 - (8)))); s13 = (((s13) << (24)) | ((s13) >> (32 - (24)))) + s12;
 
-			s14 ^= (((s14) << (7)) | ((s14) >> (32 - (7)))) ^ (((s14) << (8)) | ((s14) >> (32 - (8)))) ^ gpu_injection_constants[(j ^ 14)];
-			s15 ^= (((s15) << (1)) | ((s15) >> (32 - (1)))) ^ (((s15) << (13)) | ((s15) >> (32 - (13)))) ^ gpu_injection_constants[(j ^ 15)];
-			s14 += s15; s14 = (((s14) << (8)) | ((s14) >> (32 - (8)))); s15 = (((s15) << (24)) | ((s15) >> (32 - (24)))) + s14;
-		}
-		if (k==0)
-		{ 
-			s0 ^= (shared_state[8] ^ (global_id + 1)); s1 ^= shared_state[9]; s2 ^= shared_state[10];
-			s3 ^= shared_state[11]; s4 ^= shared_state[12];
-		}
-		k++;
+		s14 ^= (((s14) << (7)) | ((s14) >> (32 - (7)))) ^ (((s14) << (8)) | ((s14) >> (32 - (8)))) ^ gpu_injection_constants[(j ^ 14)];
+		s15 ^= (((s15) << (1)) | ((s15) >> (32 - (1)))) ^ (((s15) << (13)) | ((s15) >> (32 - (13)))) ^ gpu_injection_constants[(j ^ 15)];
+		s14 += s15; s14 = (((s14) << (8)) | ((s14) >> (32 - (8)))); s15 = (((s15) << (24)) | ((s15) >> (32 - (24)))) + s14;
 	}
 
 
@@ -258,6 +281,9 @@ GPU_DEVICE* New_GPU_DEVICE()
 
 uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devices, size_t gpu_id, size_t p_id, cl_int  status, uint8_t *input, uint8_t *target, uint8_t *nonce)
 {
+	uint32_t s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15;
+	uint32_t r0, r1, r2, r3;
+	uint32_t tmp;
 	size_t globalThreads[] = { HASH_NUM };
 	size_t localThreads[] = { THREADS_PER_BLOCK };
 	GPU_DEVICE *dev;
@@ -281,25 +307,31 @@ uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devic
 	if (status != CL_SUCCESS) { printf("Error: Create Buffer, g_state. (clCreateBuffer)\n"); goto end; }
 	
 
-	for (int j = 0, k = 0; j < M; ++j) {
-		uint32_t sum = 0;
-		for (int v = 0; v < 4; ++v) {
-			if (k < INPUT_LEN) {
-				sum = (sum << 8) ^ input[k];
-			}
-			else if (k == INPUT_LEN) {
-				sum = (sum << 8) ^ DELIMITER;
-			}
-			++k;
-		}
-		dev->state[j] = sum;
-	}
+	// absorbing
+	absorbing(s0, input, 0); absorbing(s1, input, 1);
+	absorbing(s2, input, 2); absorbing(s3, input, 3);
+	absorbing(s4, input, 4); absorbing(s5, input, 5);
+	absorbing(s6, input, 6); absorbing(s7, input, 7);
+	s8 = s9 = s10 = s11 = s12 = s13 = s14 = s15 = 0;
+	EaglesongPermutation();
 
-	RAND_bytes((uint8_t*)&(dev->state[8]), 4);
-	RAND_bytes((uint8_t*)&(dev->state[9]), 4);
-	RAND_bytes((uint8_t*)&(dev->state[10]), 4);
-	RAND_bytes((uint8_t*)&(dev->state[11]), 4);
-	dev->state[12] = DELIMITER;
+	RAND_bytes((uint8_t*) &r0, 4);
+	RAND_bytes((uint8_t*) &r1, 4);
+	RAND_bytes((uint8_t*) &r2, 4);
+	RAND_bytes((uint8_t*) &r3, 4);
+
+	dev->state[0] = s0 ^ r0;
+	dev->state[1] = s1 ^ r1;
+	dev->state[2] = s2 ^ r2;
+	dev->state[3] = s3 ^ r3;
+	dev->state[4] = s4 ^ DELIMITER;
+
+	dev->state[5] = s5; dev->state[6] = s6;
+	dev->state[7] = s7; dev->state[8] = s8;
+	dev->state[9] = s9; dev->state[10] = s10;
+	dev->state[11] = s11; dev->state[12] = s12;
+	dev->state[13] = s13; dev->state[14] = s14;
+	dev->state[15] = s15;
 
 	dev->target = target;
 	dev->nonce_id = 0;
@@ -333,10 +365,10 @@ uint32_t plat_device(cl_program program, cl_context context, cl_device_id *devic
 
 	if (dev->nonce_id)
 	{
-		((uint32_t*)nonce)[0] = le32toh(htobe32(((dev->state[8]) ^ (dev->nonce_id))));
-		((uint32_t*)nonce)[1] = le32toh(htobe32(dev->state[9]));
-		((uint32_t*)nonce)[2] = le32toh(htobe32(dev->state[10]));
-		((uint32_t*)nonce)[3] = le32toh(htobe32(dev->state[11]));
+		((uint32_t*)nonce)[0] = htobe32(r0^(dev->nonce_id));
+		((uint32_t*)nonce)[1] = htobe32(r1);
+		((uint32_t*)nonce)[2] = htobe32(r2);
+		((uint32_t*)nonce)[3] = htobe32(r3);
 	}
 
 	return HASH_NUM;
