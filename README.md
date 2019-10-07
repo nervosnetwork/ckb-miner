@@ -4,11 +4,9 @@
 | ----          | ----    |
 |   Eaglesong   | v0.19.0 |
 
-A miner for avx2 CPUs, avx512 CPUs and Nvidia GPUs.
+A miner for CPUs, avx2 CPUs, avx512 CPUs and GPUs.
 
-Using avx512, the hash rate can be up to 5M per thread on 2.5Ghz CPUs.
-
-For GPUs, the hash rate is 190M on GTX 1060, 300M on GTX 1070ti.
+Using avx512, the hash rate can be up to 10M per thread on 2.5Ghz CPUs.
 
 ## How to build
 By default, GPU miner is not built, you can build GPU miner with this parameters:
@@ -44,7 +42,7 @@ Cuda is essential to build and run miners based on Cuda.
 
 | GPU       | 1060 | 1070 ti | P106 | 2060 |
 | ---       | ---  | ---     | ---- | ---  |
-| Hash Rate | 190M  | 300M     | 200M  |  310M   |
+| Hash Rate | 400M  | 630M     | 420M  |  650M   |
 
 ### OpenCL runtime
 With OpenCL, the miner can run on any GPUs.
@@ -55,7 +53,7 @@ By default, the OpenCL include path is C:\Program Files\NVIDIA GPU Computing Too
 
 | GPU       | 1060 | 1070 ti | P106 | 2060 | VEGA64 | RX5700 | RX580 | RX570 |
 | ---       | ---  | ---     | ---- | ---  | ---  | ---    | ---  | --- |
-| Hash Rate | 180M | 300M    | 200M | 300M | 400M | 270M   | 160M |  130M   |
+| Hash Rate | 380M | 620M    | 410M | 610M | 820M | 560M   | 340M |  280M   |
 
 ## How to use
 1. Modify `ckb-miner.toml` in this repo and copy it to your working directory. You can specify the CPUs and GPUs you want to use.
